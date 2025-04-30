@@ -12,13 +12,18 @@ import cv2
 import pytesseract
 import mss
 import sounddevice as sd
+from dotenv import load_dotenv
 import psycopg2
 from psycopg2 import sql
+
+
+# === Selenium ===
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.webdriver.common.action_chains import ActionChains
 
 # === Google Drive API ===
 from google.auth.transport.requests import Request
@@ -31,3 +36,5 @@ from googleapiclient.http import MediaFileUpload
 import mediapipe as mp
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
+
+load_dotenv()
