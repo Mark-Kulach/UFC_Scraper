@@ -1,6 +1,10 @@
 from common import *
 
 def login_fight_pass(bot):
+
+    email = os.getenv('EMAIL')
+    password = os.getenv('PASSWORD')
+
     bot.get('https://ufcfightpass.com/login/')
 
     cookies = WebDriverWait(bot, 10).until(EC.element_to_be_clickable((By.ID, "onetrust-accept-btn-handler")))
@@ -10,9 +14,9 @@ def login_fight_pass(bot):
     password_input = WebDriverWait(bot, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='password']")))
 
     username_input.clear()
-    username_input.send_keys("mark@markkulach.com")
+    username_input.send_keys(email)
     password_input.clear()
-    password_input.send_keys("password")
+    password_input.send_keys(password)
 
     login_button = WebDriverWait(bot, 2).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
     login_button.click()
@@ -173,7 +177,7 @@ def scrape_stats(bot):
     cursor.execute("SELECT id, stats_link FROM events")
     rows = {row[0]: row[1] for row in cursor.fetchall()}  
 
-    for id, link in row    s.items():
+    for id, link in rows.items():
         bot.get(link)
         time.sleep(2)
 
