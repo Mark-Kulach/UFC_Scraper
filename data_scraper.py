@@ -1,13 +1,26 @@
-from common import *
+import os
+import re
+import time
+
+import psycopg2
+from psycopg2 import sql
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
+
+from dotenv import load_dotenv
+load_dotenv()
 
 def login_fight_pass(bot):
-
-    email = os.getenv('EMAIL')
+    email = os.getenv("EMAIL")
     password = os.getenv('PASSWORD')
 
     bot.get('https://ufcfightpass.com/login/')
-
-    cookies = WebDriverWait(bot, 10).until(EC.element_to_be_clickable((By.ID, "onetrust-accept-btn-handler")))
+    cookies = WebDriverWait(bot, 10).until(EC.element_to_be_clickable((By.ID, "onetrust-accept-btn-handler"))) # Bypass Cookies
     cookies.click()
 
     username_input = WebDriverWait(bot, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='email']")))
@@ -26,6 +39,7 @@ def login_fight_pass(bot):
 
 def scrape_event_footage(bot):
     login_fight_pass(bot)
+
 
     data = []
 
@@ -64,20 +78,20 @@ def scrape_fighters(bot):
             try:
                 temp["first_name"] = cols[0].text.lower()
                 temp["stats_link"] = cols[0].find_element(By.TAG_NAME, "a").get_attribute("href")
-            except:
+            except Exception:
                 pass
 
             try:
                 temp["last_name"] = cols[1].text.lower()
                 temp["stats_link"] = cols[1].find_element(By.TAG_NAME, "a").get_attribute("href")
 
-            except:
+            except Exception:
                 pass
 
             try:
                 temp["nickname"] = cols[2].text.lower()
                 temp["stats_link"] = cols[2].find_element(By.TAG_NAME, "a").get_attribute("href")
-            except:
+            except Exception:
                 pass
                 
             fighters.append(temp)
@@ -104,13 +118,10 @@ def insert_data_to_table(table_name, data_list):
 
 
 def connect_to_db():
-    if os.name == "nt":
-        DB_HOST = input("HOST:") + ".tcp.ngrok.io"
-        DB_PORT = input("PORT:")
+    # Windows Only
+    DB_HOST = input("HOST:") + ".tcp.ngrok.io"
+    DB_PORT = input("PORT:")
 
-    else:
-        DB_HOST = 'localhost'
-        DB_PORT = 5432
     DB_NAME = 'mma_coach'
     DB_USER = 'postgres'
 
@@ -121,7 +132,7 @@ def connect_to_db():
     return conn, cursor
 
 
-def scrape_links(bot):
+def scrape_stat_pages(bot):
     conn, cursor = connect_to_db()
 
     bot.get("http://ufcstats.com/statistics/events/completed?page=all")
@@ -141,7 +152,7 @@ def scrape_links(bot):
                 
             cursor.execute("UPDATE events SET stats_link = %s WHERE title LIKE %s", (event.get_attribute("href"), f"%{title}%")) 
 
-        except:
+        except Exception:
             pass
     
     conn.close()
@@ -165,7 +176,6 @@ def get_fight_links(bot):
         for i in range(len(fight_urls)):
             cursor.execute("UPDATE fights SET stats_link = %s WHERE id = %s", (fight_rows[i][0], fight_urls[i]))
 
-        # 
     pass
 
 
@@ -363,7 +373,7 @@ def scrape_fights(bot):
 
     
     for row in output:
-            cursor.execute("INSERT INTO fights (event_id, title) VALUES (%s, %s)", (row["event_id"], row["title"],))
+        cursor.execute("INSERT INTO fights (event_id, title) VALUES (%s, %s)", (row["event_id"], row["title"],))
 
 
 def scrape_stats_link(bot):
@@ -387,7 +397,7 @@ def scrape_stats_link(bot):
                     link = bot.find_element(By.XPATH, f"//a[contains(text(), '{fighter.title()}')]/../../..").get_attribute("data-link")
                     cursor.execute("UPDATE fights SET stats_link = %s WHERE id = %s", (link, id))
                     break
-                except:
+                except Exception:
                     if fighters.index(fighter) != 0:
                         print(id, title)
                     pass
@@ -395,8 +405,6 @@ def scrape_stats_link(bot):
 
 def push_stats(data):
     conn, cursor = connect_to_db()
-    # FIX: make it work with stats link by fight
-
     try:
         for event_data in data:
             for fight_data in event_data:
@@ -486,62 +494,10 @@ def merge_dictionaries(list1, list2, shared_key):
     return merged_list
 
 
-def temp_fix():
-    conn, cursor = connect_to_db()
-
-    query = """
-    WITH RankedFights AS (
-        SELECT 
-            f.id AS fight_id,
-            f.title AS fight_title,
-            f.event_id,
-            e.title AS event_title,
-            e.stats_link AS event_stats,
-            ROW_NUMBER() OVER (PARTITION BY f.event_id ORDER BY f.id DESC) AS fight_rank
-        FROM 
-            fights f
-        LEFT JOIN 
-            events e
-        ON 
-            f.event_id = e.id
-        WHERE 
-            e.title NOT LIKE '%prelims%'
-    )
-    SELECT 
-        fight_id,
-        fight_title,
-        event_id,
-        event_title,
-        event_stats2
-    FROM 
-        RankedFights
-    WHERE 
-        fight_rank = 1;
-    """
-
-    cursor.execute(query)
-    rows = cursor.fetchall()
-
-    for row in rows:
-        fight_title = re.sub(r'[^\w\s]', '', row[1].lower().strip())
-        event_title = re.sub(r'[^\w\s]', '', row[3].lower().strip())
-
-        fighters = fight_title.split(' vs ')
-    
-        count = 0
-        for fighter in fighters:
-            fighter_parts = fighter.split() 
-            if not any(part in event_title for part in fighter_parts):
-                count += 1
-
-            if count == 2:
-                print(row[2])
-                print()
-
 def main():
     driver = webdriver.Chrome()
     scrape_stats_link(driver)
 
 
 if __name__ == "__main__":
-    temp_fix()
+    main()
